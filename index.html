@@ -245,7 +245,7 @@ const msgs = $("msgs");
 
 const F1 = [["nome","Nome"],["interesse","Interesse"],["quem","Para quem"],["pessoas","Pessoas"],["idade","Idade"],["onde","Mora em Santos?"],["vezes","Já surfou"],
   ["objetivo","Objetivo"],["rotina","Rotina"],["freq","Frequência"],["horario","Horário"],["quando","Quer começar"],
-  ["sugerido","Plano sugerido"],["alternativa","Alternativa"],["escolha","Escolha"],["temp","Lista"],["obs","Observações"]];
+  ["sugerido","Plano sugerido"],["alternativa","Alternativa"],["escolha","Escolha"],["temp","Listas"],["obs","Observações"]];
 const F2 = ["Altura","Peso","Atividade física","Doenças","Sintomas","Condições","Risco cardiovascular","Declaração de saúde",
   "Esporte aquático","Já surfou de peito","Medo do mar","Já se afogou","Sufoco no mar","Natação 50 m"];
 const F3 = ["Nome completo","E-mail","CPF"];
@@ -526,24 +526,30 @@ function handoff(){
   S.step=null; S.expect=null;
   $("notifText").textContent=summary();
   $("notifCard").hidden=false;
-  $("closed").hidden = !!(S.data.interesse||"").startsWith("Viagem");
-  $("closedHint").hidden = $("closed").hidden;
+  const trip=isTrip();
+  $("closed").hidden=false; $("closedHint").hidden=false;
+  $("closed").textContent = trip ? "Viagem fechada · enviar ficha" : "Pacote fechado · enviar ficha";
+  $("closedHint").textContent = trip ? "Depois que você fechar a viagem, aperte aqui. A IA manda a ficha e a pessoa entra nas listas Viagens e Comunidade."
+                                     : "Depois que você fechar com o cliente, aperte aqui. A IA volta pra conversa e manda o link da anamnese.";
   $("status").className="status ready"; $("status").textContent="Lead pronto pra você";
   renderFicha();
 }
 
 /* Pacote fechado → IA volta e manda a ficha */
+function isTrip(){ return (S.data.interesse||"").startsWith("Viagem"); }
 function packageClosed(){
   if(S.stage!=="quiz") return;
   S.stage="ficha";
   if(human) setHuman(false);
-  set("temp","Aluno ativo"); renderFicha();
+  const trip=isTrip();
+  set("temp", trip ? "Viagens · Comunidade" : "Aluno ativo"); renderFicha();
   $("closed").disabled=true; $("closed").textContent="Ficha enviada";
-  $("notifTitle").textContent="Pacote fechado";
+  $("notifTitle").textContent= trip ? "Viagem fechada" : "Pacote fechado";
   $("status").className="status"; $("status").textContent="IA enviando a ficha";
   $("formCard").hidden=false; $("formStatus").textContent="Link enviado · aguardando o aluno preencher"; $("simForm").disabled=false;
-  bot([`${S.data.nome}, seja muito bem-vindo(a) à Surf Experience! 🎉🏄`,
-       "Pra deixar tudo pronto pra primeira aula, preciso que você preencha nossa ficha de anamnese. É rapidinho, uns 3 minutos:",
+  bot([trip ? `${S.data.nome}, sua vaga na viagem tá garantida! 🎉🌊 Agora você também faz parte da comunidade Surf Experience e vai receber as próximas viagens e eventos.`
+            : `${S.data.nome}, seja muito bem-vindo(a) à Surf Experience! 🎉🏄`,
+       trip ? "Pra deixar tudo pronto pra viagem, preciso que você preencha nossa ficha de anamnese. É rapidinho, uns 3 minutos:" : "Pra deixar tudo pronto pra primeira aula, preciso que você preencha nossa ficha de anamnese. É rapidinho, uns 3 minutos:",
        {html:`<a href="${FORM_URL}" target="_blank" rel="noopener" style="color:var(--sea);font-weight:700">📋 Ficha de anamnese · Surf Experience</a>`},
        "Assim que você enviar, eu já vejo aqui. Qualquer dúvida, é só me chamar 🤙"],
     ()=>{ $("status").textContent="Aguardando a ficha"; });
@@ -558,7 +564,7 @@ function formArrived(){
   $("formStatus").textContent="Ficha recebida e salva no CRM ✓"; $("simForm").disabled=true;
   $("status").className="status ready"; $("status").textContent="Ficha completa";
   renderFicha();
-  bot([`Recebi sua ficha, ${S.data.nome}! Tá tudo certo por aqui ✅`,"Te vejo na água! 🌊"]);
+  bot([`Recebi sua ficha, ${S.data.nome}! Tá tudo certo por aqui ✅`, isTrip()?"Logo te mando os detalhes da viagem. Vai ser incrível! 🌊":"Te vejo na água! 🌊"]);
 }
 
 function alerts(){
@@ -582,12 +588,12 @@ function renderFicha(){
   const filled=keys.filter(k=>d[k]).length;
   const pct = S.stage==="done"?100 : S.stage==="ficha"?80 : Math.round(filled/keys.length*70);
   $("prog").style.width=pct+"%";
-  $("progLabel").textContent = S.stage==="done" ? "Aluno ativo · ficha completa"
+  $("progLabel").textContent = S.stage==="done" ? (isTrip()?"Viagem fechada · ficha completa · listas Viagens e Comunidade":"Aluno ativo · ficha completa")
     : S.stage==="ficha" ? "Pacote fechado · aguardando anamnese"
     : (d.temp ? "Quiz completo · salvo como prospect" : "Preenchida pela IA durante a conversa");
   $("alerts").innerHTML = alerts().map(([c,t])=>`<div class="alert ${c}">${esc(t)}</div>`).join("");
   $("ficha1").innerHTML = dl(F1.map(([k,l])=>{
-    let v=d[k]; if(k==="temp"&&v){const c=/ativo|quente/i.test(v)?"quente":"morno";return [l,`<span class="temp ${c}">${esc(v)}</span>`];}
+    let v=d[k]; if(k==="temp"&&v){const c=/ativo|quente|comunidade/i.test(v)?"quente":"morno";return [l,`<span class="temp ${c}">${esc(v)}</span>`];}
     return [l, v?esc(v):""];
   }));
   $("ficha2").innerHTML = dl(F2.map(k=>[k, f[k]?esc(f[k]):""]));

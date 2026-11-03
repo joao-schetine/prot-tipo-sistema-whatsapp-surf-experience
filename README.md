@@ -11,3 +11,8 @@ Protótipo clicável do atendimento automático pelo WhatsApp:
 Por enquanto as respostas seguem um roteiro simulado. Na versão real, a IA responde via API e a conversa chega pelo WhatsApp.
 
 Para ver: abra `index.html` no navegador.
+
+## Arquivos
+
+- `index.html`: protótipo do atendente de WhatsApp
+- `Roteiro_Perguntas_Surf_Experience.xlsx`: roteiro de perguntas, preços e regras da IA
