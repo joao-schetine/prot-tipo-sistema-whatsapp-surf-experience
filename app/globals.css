@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #EEF3F1; --ink: #0E2A3A; --muted: #5B6F78; --line: #D4DFDC; --surface: #FFFFFF;
+  --sea: #167C93; --sea-soft: #DCEFF2;
+  --hot: #C2410C; --hot-soft: #FDE7DC; --warm: #A16207; --warm-soft: #FBF0D2;
+  --cold: #475E8A; --cold-soft: #E3E9F4; --ok: #15803D; --ok-soft: #DCF3E3;
+  --sand: #8A5A2B; --sand-soft: #F3E6D6;
+  --head: #0E2A3A; --head-ink: #F2F7F6; --chat: #E9E2D4; --bubble: #FFFFFF; --bubble-out: #D6F5C6;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0B1A21; --ink: #E4EEEC; --muted: #93A8AF; --line: #21363F; --surface: #11252E;
+    --sea: #4FC1D6; --sea-soft: #163A44;
+    --hot: #FB923C; --hot-soft: #3A2116; --warm: #FACC15; --warm-soft: #352C10;
+    --cold: #9DB4E0; --cold-soft: #1C2740; --ok: #4ADE80; --ok-soft: #163323;
+    --sand: #E3B98A; --sand-soft: #3A2A1A;
+    --head: #08141A; --head-ink: #E4EEEC; --chat: #0F1D22; --bubble: #1D2E35; --bubble-out: #1F4A36;
+    color-scheme: dark;
+  }
+}
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 15px; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
+.scroll-x { overflow-x: auto; scrollbar-width: thin; }

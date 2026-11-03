@@ -1,18 +1,22 @@
-# Protótipo · Atendente de WhatsApp da Surf Experience
+# Surf Experience · Sistema (atendente de WhatsApp + CRM)
 
-Protótipo clicável do atendimento automático pelo WhatsApp:
+Um sistema só: o WhatsApp é a porta de entrada e o CRM é onde tudo fica guardado.
 
-- Quiz conversado para entender nível, objetivo, rotina, frequência e horário
-- Sugestão do plano ideal, com segunda opção e tabela completa
-- Ficha do lead preenchida durante a conversa
-- Botão para o atendente assumir a conversa
-- Resumo do lead pronto para fechar
+## O que tem aqui
 
-Por enquanto as respostas seguem um roteiro simulado. Na versão real, a IA responde via API e a conversa chega pelo WhatsApp.
+- `/` · **Quadro**: listas de alunos (aguardando você, prospects quente/morno/frio, ativos, comunidade, viagens, inativos)
+- `/lead/[id]` · **Ficha**: perfil, observações, anamnese, conversa do WhatsApp e botões (assumir conversa, pacote/viagem fechada)
+- `/agenda` · **Agenda** de follow-ups e renovações
+- `/atendente/` · protótipo da conversa da IA no WhatsApp
+- `Roteiro_Perguntas_Surf_Experience.xlsx` · roteiro de perguntas, preços e regras da IA
 
-Para ver: abra `index.html` no navegador.
+Por enquanto usa **dados de exemplo** (pessoas fictícias). Banco planejado: SQLite (Turso).
 
-## Arquivos
+## Rodar no computador
 
-- `index.html`: protótipo do atendente de WhatsApp
-- `Roteiro_Perguntas_Surf_Experience.xlsx`: roteiro de perguntas, preços e regras da IA
+```
+npm install
+npm run dev
+```
+
+Feito com Next.js + Tailwind. Publicado automaticamente na Vercel a cada versão.
