@@ -222,7 +222,9 @@ const P = {
 };
 const PER = ["mensal","trimestral","semestral"];
 const NIVEL = {"Nenhuma":"Nunca surfei","Menos de 5 vezes":"Já fiz algumas aulas","Menos de 20 vezes":"Já surfo, quero evoluir","Incontáveis":"Surfo bem, nível avançado"};
-const brl = v => "R$ " + v.toLocaleString("pt-BR");
+const OBJ=["Experimentar pela primeira vez","Aprender e criar uma rotina","Ganhar confiança no mar","Evoluir a técnica","Aula individual, com vídeo análise"];
+const PAC={pac1:[[2,270],[3,375],[4,480],[5,575]],pac2:[[2,240],[3,350],[4,440],[5,525]]};
+const brl = v => "R$ " + v.toLocaleString("pt-BR",{minimumFractionDigits:Number.isInteger(v)?0:2,maximumFractionDigits:2});
 
 /* Resposta de exemplo do formulário de anamnese (dados fictícios) */
 const SAMPLE_FORM = {
@@ -241,8 +243,8 @@ let S, timers = [], human = false;
 const $ = id => document.getElementById(id);
 const msgs = $("msgs");
 
-const F1 = [["nome","Nome"],["interesse","Interesse"],["quem","Para quem"],["idade","Idade"],["vezes","Já surfou"],
-  ["objetivo","Objetivo"],["rotina","Rotina"],["freq","Frequência"],["horario","Horário"],
+const F1 = [["nome","Nome"],["interesse","Interesse"],["quem","Para quem"],["pessoas","Pessoas"],["idade","Idade"],["onde","Mora em Santos?"],["vezes","Já surfou"],
+  ["objetivo","Objetivo"],["rotina","Rotina"],["freq","Frequência"],["horario","Horário"],["quando","Quer começar"],
   ["sugerido","Plano sugerido"],["alternativa","Alternativa"],["escolha","Escolha"],["temp","Lista"],["obs","Observações"]];
 const F2 = ["Altura","Peso","Atividade física","Doenças","Sintomas","Condições","Risco cardiovascular","Declaração de saúde",
   "Esporte aquático","Já surfou de peito","Medo do mar","Já se afogou","Sufoco no mar","Natação 50 m"];
@@ -250,7 +252,7 @@ const F3 = ["Nome completo","E-mail","CPF"];
 
 function reset(){
   timers.forEach(clearTimeout); timers=[]; human=false;
-  S = {data:{}, step:null, expect:null, form:null, stage:"quiz"};
+  S = {data:{}, step:null, expect:null, form:null, stage:"quiz", upDone:false};
   msgs.innerHTML = '<div class="day">HOJE</div>';
   $("notifCard").hidden = true; $("formCard").hidden = true;
   $("closed").disabled=false; $("closed").textContent="Pacote fechado · enviar ficha"; $("closedHint").hidden=false;
@@ -290,8 +292,8 @@ function bot(lines, done, i=0){
     bot(lines,done,i+1);
   },wait));
 }
-function ask(step, options){
-  S.step=step; S.expect=options;
+function ask(step, options, free){
+  S.step=step; S.expect=options; S.free=!!free;
   if(!options || human) return;
   const c=document.createElement("div"); c.className="chips";
   options.forEach(o=>{const b=document.createElement("button");b.type="button";b.textContent=o;b.onclick=()=>answer(o);c.appendChild(b)});
@@ -310,6 +312,7 @@ function answer(text){
     const score=o=>{const w=o.toLowerCase().replace(/[^a-zà-ú0-9 ]/g," ").split(" ").filter(x=>x.length>2);return w.filter(x=>t.includes(x)).length};
     let hit=S.expect.find(o=>o.toLowerCase()===t.trim());
     if(!hit){ const best=S.expect.map(o=>[o,score(o)]).sort((a,b)=>b[1]-a[1]); if(best[0][1]>0) hit=best[0][0]; }
+    if(!hit && S.free){ flow(S.step,null,text); return; }
     if(!hit){ bot(["Entendi! Só pra eu não anotar errado, escolhe uma das opções aqui embaixo 🙂"],()=>ask(S.step,S.expect)); return; }
     opt=hit;
   }
@@ -328,7 +331,7 @@ function flow(step,o,raw){
       set("interesse",o);
       if(o==="Viagens de surf"){ bot(["Boa! A gente organiza viagens nacionais e internacionais. Qual te interessa mais?"],()=>ask("viagem",["Nacional","Internacional","Tanto faz"])); }
       else { if(o==="Os dois") addObs("também curte viagens");
-        bot(["Show! As aulas seriam pra você ou pra outra pessoa?"],()=>ask("quem",["Pra mim","Pro meu filho ou filha","Pra mim e mais alguém"])); }
+        bot(["Show! As aulas seriam pra você ou pra outra pessoa?"],()=>ask("quem",["Pra mim","Pro meu filho ou filha","Pra mim e mais alguém","Família ou grupo de amigos"])); }
       break;
     case "viagem":
       set("interesse","Viagem · "+o.toLowerCase()); set("temp","Prospect · viagens");
@@ -336,19 +339,31 @@ function flow(step,o,raw){
       break;
     case "quem":
       set("quem",o);
-      bot([o==="Pro meu filho ou filha"?"Que legal! Quantos anos ele ou ela tem?":"E quantos anos você tem?"],()=>ask("idade",null));
+      if(o==="Pra mim e mais alguém"||o==="Família ou grupo de amigos")
+        bot(["Que massa surfar junto! 🤙 Quantas pessoas vão fazer as aulas?"],()=>ask("pessoas",["2 pessoas","3 pessoas","4 ou mais"]));
+      else askIdade();
       break;
+    case "pessoas": set("pessoas",o); askIdade(); break;
     case "idade":
       set("idade",raw.trim().replace(/\D+$/,"")+(/\d/.test(raw)&&!/ano/.test(raw)?" anos":""));
-      bot([forOther()?"E quantas vezes ele ou ela já surfou?":"E quantas vezes você já surfou?"],
+      bot([forOther()?"Vocês moram em Santos ou estão passando uma temporada por aqui?":"Você mora em Santos ou tá passando uma temporada por aqui?"],
+        ()=>ask("onde",["Moro em Santos","Tô de temporada"]));
+      break;
+    case "onde":
+      set("onde",o);
+      bot([d.quem==="Pro meu filho ou filha"?"E quantas vezes ele ou ela já surfou?":forOther()?"E quantas vezes vocês já surfaram?":"E quantas vezes você já surfou?"],
         ()=>ask("vezes",["Nenhuma","Menos de 5 vezes","Menos de 20 vezes","Incontáveis"]));
       break;
     case "vezes":
       set("vezes",o); d.nivel=NIVEL[o];
-      bot([o==="Nenhuma"?"Tranquilo, a maioria dos nossos alunos começou do zero 😉 E o que você busca agora?":"Massa! E o que você busca agora?"],
-        ()=>ask("objetivo",["Experimentar pela primeira vez","Aprender e criar uma rotina","Evoluir a técnica","Aula individual, com vídeo análise"]));
+      if(d.quem==="Pro meu filho ou filha") bot(["E ele ou ela se sente confortável no mar?"],()=>ask("conforto",["Sim","Mais ou menos","Não"]));
+      else if(o==="Menos de 20 vezes"||o==="Incontáveis") bot(["Massa! E qual sua maior dificuldade no surf hoje?"],()=>ask("dificuldade",null));
+      else askObjetivo(o==="Nenhuma"?"Tranquilo, a maioria dos nossos alunos começou do zero 😉 ":"");
       break;
+    case "conforto": if(o!=="Sim") addObs("criança "+(o==="Não"?"não se sente":"mais ou menos")+" confortável no mar"); askObjetivo(""); break;
+    case "dificuldade": set("dificuldade",raw.trim()); addObs("dificuldade: "+raw.trim()); askObjetivo("Anotado! "); break;
     case "objetivo":
+      if(!o){ addObs("quer: "+raw.trim()); bot(["Que legal! Pra eu acertar nas opções, qual desses é mais parecido com o que você busca?"],()=>ask("objetivo",OBJ)); break; }
       set("objetivo",o);
       bot(["Entendi. E como é sua rotina hoje?"],()=>ask("rotina",["Tenho horário fixo na semana","Minha rotina muda bastante","Só consigo no fim de semana"]));
       break;
@@ -360,9 +375,14 @@ function flow(step,o,raw){
     case "freq": set("freq",o); askHorario(); break;
     case "horario":
       set("horario",o);
-      S.rec = recommend();
-      showOptions();
+      bot(["E você pretende começar ainda esta semana?"],()=>ask("quando",["Sim, essa semana","Semana que vem","Ainda não sei"]));
       break;
+    case "quando":
+      set("quando",o);
+      S.rec = recommend(); showOptions(); break;
+    case "upgrade":
+      if(o.startsWith("Quero")){ set("escolha", S.up.to+" (grupo) · aceitou o upgrade"); }
+      closeOut(); break;
     case "escolha": pick(o, S.rec.group, "escolha"); break;
     case "escolha2": pick(o, S.rec.alt, "escolha2"); break;
     case "coach": {
@@ -375,6 +395,12 @@ function flow(step,o,raw){
       break;
     case "tabela": set("escolha","Viu a tabela: "+raw.trim()); set("temp","Prospect · quente"); closeOut(); break;
   }
+  function askIdade(){
+    bot([d.quem==="Pro meu filho ou filha"?"Que legal! Quantos anos ele ou ela tem?":d.pessoas?"E qual a idade de quem vai surfar?":"E quantos anos você tem?"],()=>ask("idade",null));
+  }
+  function askObjetivo(pre){
+    bot([pre+"Me conta: o que você gostaria de conquistar com o surf?"],()=>ask("objetivo",OBJ,true));
+  }
   function askHorario(){
     bot(["E qual horário funciona melhor?"],()=>ask("horario",["Cedinho (6h45 ou 8h)","Meio da manhã (9h30 ou 11h)","Tarde (15h ou 16h30)"]));
   }
@@ -385,15 +411,15 @@ function recommend(){
   const G=(k)=>({key:k,freq:f});
   const coachStar = d.objetivo==="Aula individual, com vídeo análise" || (d.objetivo==="Evoluir a técnica" && d.nivel!=="Nunca surfei");
   const elite = d.nivel==="Surfo bem, nível avançado" || d.objetivo==="Aula individual, com vídeo análise";
-  let r;
-  if(d.objetivo==="Experimentar pela primeira vez")
-    r={group:G("avulsa"),alt:G("d60"),why:"dá pra sentir a água antes de assumir um plano"};
+  let r; const grp=!!d.pessoas, pk=grp?"pac2":"pac1";
+  if(d.onde==="Tô de temporada"||d.objetivo==="Experimentar pela primeira vez")
+    r={group:G(pk),alt:G("avulsa"),why:d.onde==="Tô de temporada"?"dá pra aproveitar bem a temporada com um pacote de aulas":"dá pra sentir a água antes de assumir um plano"};
   else if(d.rotina==="Minha rotina muda bastante"||d.freq==="Sem frequência definida")
-    r={group:G("d60"),alt:G("flex"),why:"você usa as aulas quando der, sem frequência fixa"};
+    r={group:G("d60"),alt:G(grp?"pac2":"flex"),why:"você usa as aulas quando der, sem frequência fixa"};
   else if(d.rotina==="Só consigo no fim de semana")
-    r={group:G("flex"),alt:G("d60"),why:"é o plano em grupo com aula no sábado e no domingo"};
+    r={group:G("flex"),alt:G(grp?"pac2":"d60"),why:"é o plano em grupo com aula no sábado e no domingo"};
   else
-    r={group:G("fixo"),alt:G("flex"),why:"com turma e horário fixos, a constância acelera a evolução"};
+    r={group:G("fixo"),alt:G(grp?"pac2":"flex"),why:"com turma e horário fixos, a constância acelera a evolução"};
   r.coachStar=coachStar; r.elite=elite;
   return r;
 }
@@ -404,6 +430,8 @@ function groupOpts(g){
     return {title:`${p.n} · ${fr}x por semana`, desc:p.d,
       items:PER.map((per,i)=>({chip:`${p.n.replace("Plano ","")} ${fr}x · ${cap(per)}`, line:`${cap(per)}: <b>${brl(p.p[fr][i])}/mês</b>`}))};
   }
+  if(g.key==="pac1"||g.key==="pac2") return {title:g.key==="pac1"?"Pacote de aulas":"Pacote de aulas a partir de 2 pessoas", desc:"Aulas em grupo, você escolhe quantas (parcela em até 2x a partir de 4 aulas)",
+    items:PAC[g.key].map(([a,v])=>({chip:`Pacote ${a} aulas`, aulas:a, valor:v, line:`${a} aulas: <b>${brl(v)}</b> (${brl(v/a)} por aula)`}))};
   if(g.key==="d60") return {title:"Plano 60 Dias", desc:"Escolha a quantidade de aulas e use em até 60 dias, sem frequência semanal",
     items:[["4 aulas","R$ 420"],["8 aulas","R$ 730 (2x no cartão)"],["12 aulas","R$ 1.150 (3x no cartão)"]].map(([a,v])=>({chip:`60 Dias · ${a}`,line:`${a}: <b>${v}</b>`}))};
   return {title:"Aula avulsa", desc:"Uma aula pra experimentar, sem compromisso",
@@ -411,7 +439,7 @@ function groupOpts(g){
 }
 const COACH = {
   "Básico":{d:"Acompanhamento individual, ajustes técnicos e feedback na hora",items:[["4 aulas","R$ 649 (2x)"],["8 aulas","R$ 1.200 (3x)"],["12 aulas","R$ 1.620 (4x)"]],av:"R$ 180"},
-  "Elite":{d:"Tudo do Básico + filmagem, vídeo análise e planejamento de evolução",items:[["4 aulas","R$ 840 (2x)"],["8 aulas","R$ 1.680 (3x)"]],av:"R$ 250"}
+  "Elite":{d:"Tudo do Básico + filmagem, vídeo análise e planejamento de evolução",items:[["4 aulas","R$ 840 (2x)"],["8 aulas","R$ 1.680 (3x)"],["12 aulas","R$ 1.520 (4x)"]],av:"R$ 250"}
 };
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
 function groupHtml(o,star){
@@ -440,7 +468,18 @@ function showOptions(){
 function pick(o, g, step){
   const d=S.data, items=groupOpts(g).items;
   const hit=items.find(i=>i.chip===o);
-  if(hit){ set("escolha", hit.chip+" (grupo)"); set("temp","Prospect · quente"); closeOut(); return; }
+  if(hit){
+    set("escolha", hit.chip+" (grupo)"); set("temp","Prospect · quente");
+    const pk=d.pessoas?"pac2":"pac1", p4=PAC[pk][2];
+    const small=(hit.aulas&&hit.aulas<4)||g.key==="avulsa";
+    if(small && !S.upDone){
+      S.upDone=true; S.up={to:"Pacote 4 aulas"};
+      const ref=hit.aulas?brl(hit.valor/hit.aulas):"o valor da avulsa";
+      bot([`Fechado! Só uma dica: no pacote de 4 aulas, cada aula sai ${brl(p4[1]/4)}${hit.aulas?" em vez de "+ref:""}, e dá pra parcelar em 2x. Quer que eu deixe assim ou mantém sua escolha?`],
+        ()=>ask("upgrade",["Quero o de 4 aulas","Mantém o que escolhi"]));
+      return;
+    }
+    closeOut(); return; }
   if(o.startsWith("Surf Coach")){
     const lvl=o.includes("Elite")?"Elite":"Básico"; S.coachLevel=lvl;
     const opts=COACH[lvl].items.map(([a,v])=>`${a} · ${v}`);
@@ -470,12 +509,15 @@ function summary(){
   L.push(`🏄 Lead pronto: ${d.nome}`);
   if(d.interesse) L.push(`Interesse: ${d.interesse}`);
   if(d.quem&&d.quem!=="Pra mim") L.push(`Para: ${d.quem.toLowerCase()}`);
+  if(d.pessoas) L.push(`Pessoas: ${d.pessoas}`);
   if(d.idade) L.push(`Idade: ${d.idade}`);
+  if(d.onde) L.push(d.onde);
   if(d.vezes) L.push(`Já surfou: ${d.vezes.toLowerCase()}`);
   if(d.objetivo) L.push(`Objetivo: ${d.objetivo}`);
   const rot=[d.freq,d.rotina,d.horario].filter(Boolean).join(" · "); if(rot) L.push(`Rotina: ${rot}`);
   if(d.sugerido) L.push(`Ofertado: ${d.sugerido}`);
   if(d.escolha) L.push(`Escolha: ${d.escolha}`);
+  if(d.quando) L.push(`Quer começar: ${d.quando.toLowerCase()}`);
   if(d.obs) L.push(`Obs: ${d.obs}`);
   L.push(`Lista: ${d.temp||"Prospect"}`);
   return L.join("\n");
