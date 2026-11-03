@@ -25,7 +25,7 @@ export default function Nav() {
               <Link key={l.href} href={l.href} className={`rounded-full px-3 py-1.5 font-medium ${on ? "bg-white/15" : "opacity-75 hover:opacity-100"}`}>{l.label}</Link>
             );
           })}
-          <a href="/atendente/" className="rounded-full px-3 py-1.5 font-medium opacity-75 hover:opacity-100">Atendente (protótipo)</a>
+          <a href="/atendente" className="rounded-full px-3 py-1.5 font-medium opacity-75 hover:opacity-100">Atendente (protótipo)</a>
         </nav>
         <span className="ml-auto rounded-full bg-white/10 px-3 py-1 text-xs font-medium">Dados de exemplo</span>
       </div>
