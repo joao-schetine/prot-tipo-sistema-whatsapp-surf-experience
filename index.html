@@ -242,7 +242,7 @@ const $ = id => document.getElementById(id);
 const msgs = $("msgs");
 
 const F1 = [["nome","Nome"],["interesse","Interesse"],["quem","Para quem"],["idade","Idade"],["vezes","Já surfou"],
-  ["objetivo","Objetivo"],["rotina","Rotina"],["freq","Frequência"],["horario","Horário"],["periodo","Pagamento"],
+  ["objetivo","Objetivo"],["rotina","Rotina"],["freq","Frequência"],["horario","Horário"],
   ["sugerido","Plano sugerido"],["alternativa","Alternativa"],["escolha","Escolha"],["temp","Lista"],["obs","Observações"]];
 const F2 = ["Altura","Peso","Atividade física","Doenças","Sintomas","Condições","Risco cardiovascular","Declaração de saúde",
   "Esporte aquático","Já surfou de peito","Medo do mar","Já se afogou","Sufoco no mar","Natação 50 m"];
@@ -307,7 +307,9 @@ function answer(text){
   let opt=text;
   if(S.expect){
     const t=text.toLowerCase();
-    const hit=S.expect.find(o=>{const w=o.toLowerCase().replace(/[^a-zà-ú0-9 ]/g,"").split(" ").filter(x=>x.length>2);return t.includes(o.toLowerCase())||w.some(x=>t.includes(x))});
+    const score=o=>{const w=o.toLowerCase().replace(/[^a-zà-ú0-9 ]/g," ").split(" ").filter(x=>x.length>2);return w.filter(x=>t.includes(x)).length};
+    let hit=S.expect.find(o=>o.toLowerCase()===t.trim());
+    if(!hit){ const best=S.expect.map(o=>[o,score(o)]).sort((a,b)=>b[1]-a[1]); if(best[0][1]>0) hit=best[0][0]; }
     if(!hit){ bot(["Entendi! Só pra eu não anotar errado, escolhe uma das opções aqui embaixo 🙂"],()=>ask(S.step,S.expect)); return; }
     opt=hit;
   }
@@ -359,24 +361,17 @@ function flow(step,o,raw){
     case "horario":
       set("horario",o);
       S.rec = recommend();
-      if(S.rec.prim.per) bot(["Última pergunta 🙌 Você prefere pagar mês a mês ou fechar um período com desconto?"],()=>ask("periodo",["Mensal","Trimestral (com desconto)","Semestral (mais desconto)"]));
-      else showPrimary();
+      showOptions();
       break;
-    case "periodo": set("periodo",o.split(" ")[0]); showPrimary(); break;
-    case "reacao1":
-      if(o==="Gostei!"){ set("escolha",d.sugerido); set("temp","Prospect · quente"); closeOut(); }
-      else if(o==="Tenho uma dúvida"){ bot(["Claro! Pode mandar sua dúvida 👇"],()=>ask("duvida",null)); }
-      else showAlt();
-      break;
+    case "escolha": pick(o, S.rec.group, "escolha"); break;
+    case "escolha2": pick(o, S.rec.alt, "escolha2"); break;
+    case "coach": {
+      const lvl = S.coachLevel;
+      set("escolha", `Surf Coach ${lvl} · ${o}`); set("temp","Prospect · quente");
+      closeOut(); break; }
     case "duvida":
       addObs("dúvida: "+raw.trim());
-      bot(["Boa pergunta! Anotei aqui pra quem for fechar contigo te responder certinho.","Enquanto isso, o que achou do plano?"],()=>ask("reacao1",["Gostei!","Quero ver outra opção","Tenho uma dúvida"]));
-      break;
-    case "reacao2":
-      if(o==="Gostei dessa"){ set("escolha",d.alternativa); set("temp","Prospect · quente"); closeOut(); }
-      else if(o==="Ver tabela completa"){ bot([{img:TABELA,text:"Aqui estão todos os planos 👆"}, "Qual chamou mais sua atenção?"],()=>ask("tabela",null)); }
-      else { set("escolha","Nenhum ainda"); set("temp","Prospect · morno"); addObs("não se convenceu com as sugestões");
-        bot([`Sem problema, ${n()}! Vou chamar alguém do time pra montar algo sob medida pra você.`],()=>handoff()); }
+      bot(["Boa pergunta! Anotei aqui pra quem for fechar contigo te responder certinho.","Enquanto isso, qual das opções faz mais sentido pra você?"],()=>ask(S.back.step,S.back.opts));
       break;
     case "tabela": set("escolha","Viu a tabela: "+raw.trim()); set("temp","Prospect · quente"); closeOut(); break;
   }
@@ -386,39 +381,85 @@ function flow(step,o,raw){
 }
 
 function recommend(){
-  const d=S.data, f=d.freq?parseInt(d.freq):null;
-  const fx=(k)=>({key:k,per:true,freq:f||1});
+  const d=S.data, f=parseInt(d.freq)||1;
+  const G=(k)=>({key:k,freq:f});
+  const coachStar = d.objetivo==="Aula individual, com vídeo análise" || (d.objetivo==="Evoluir a técnica" && d.nivel!=="Nunca surfei");
+  const elite = d.nivel==="Surfo bem, nível avançado" || d.objetivo==="Aula individual, com vídeo análise";
+  let r;
   if(d.objetivo==="Experimentar pela primeira vez")
-    return {prim:{key:d.rotina==="Só consigo no fim de semana"?"av_fds":"av_sem"},alt:{key:"d60_4"},why:"pra você sentir a água antes de assumir um plano"};
-  if(d.objetivo==="Aula individual, com vídeo análise")
-    return d.nivel==="Surfo bem, nível avançado"
-      ? {prim:{key:"elite4"},alt:{key:"coach8"},why:"pelo seu nível, a vídeo análise faz muita diferença"}
-      : {prim:{key:"coach8"},alt:{key:"elite4"},why:"é acompanhamento individual com ajuste na hora"};
-  if(d.rotina==="Minha rotina muda bastante"||d.freq==="Sem frequência definida")
-    return {prim:{key:"d60_8"},alt:fx("flex"),why:"você usa as aulas quando der, sem frequência fixa"};
-  if(d.rotina==="Só consigo no fim de semana")
-    return {prim:fx("flex"),alt:{key:"d60_8"},why:"é o plano que tem aula no sábado e no domingo"};
-  const alt = (d.objetivo==="Evoluir a técnica"&&d.nivel!=="Nunca surfei") ? {key:"coach4"} : fx("flex");
-  return {prim:fx("fixo"),alt,why:"com turma e horário fixos, a constância acelera a evolução"};
+    r={group:G("avulsa"),alt:G("d60"),why:"dá pra sentir a água antes de assumir um plano"};
+  else if(d.rotina==="Minha rotina muda bastante"||d.freq==="Sem frequência definida")
+    r={group:G("d60"),alt:G("flex"),why:"você usa as aulas quando der, sem frequência fixa"};
+  else if(d.rotina==="Só consigo no fim de semana")
+    r={group:G("flex"),alt:G("d60"),why:"é o plano em grupo com aula no sábado e no domingo"};
+  else
+    r={group:G("fixo"),alt:G("flex"),why:"com turma e horário fixos, a constância acelera a evolução"};
+  r.coachStar=coachStar; r.elite=elite;
+  return r;
 }
-function describe(r){
-  const p=P[r.key];
-  if(r.per){
-    const per=(S.data.periodo||"Mensal").toLowerCase(), i=PER.indexOf(per), v=p.p[r.freq][i<0?0:i];
-    const label=`${p.n} · ${r.freq}x por semana`;
-    return {label, html:`<div class="plan"><strong>${label}</strong><br>${p.d}<br><b>${brl(v)}/mês</b> no ${per}</div>`};
+/* opções de cada plano em grupo: chip, rótulo e preço */
+function groupOpts(g){
+  if(g.key==="fixo"||g.key==="flex"){
+    const p=P[g.key], fr=g.freq>3?3:g.freq;
+    return {title:`${p.n} · ${fr}x por semana`, desc:p.d,
+      items:PER.map((per,i)=>({chip:`${p.n.replace("Plano ","")} ${fr}x · ${cap(per)}`, line:`${cap(per)}: <b>${brl(p.p[fr][i])}/mês</b>`}))};
   }
-  return {label:p.n, html:`<div class="plan"><strong>${p.n}</strong><br>${p.d}<br><b>${p.v}</b></div>`};
+  if(g.key==="d60") return {title:"Plano 60 Dias", desc:"Escolha a quantidade de aulas e use em até 60 dias, sem frequência semanal",
+    items:[["4 aulas","R$ 420"],["8 aulas","R$ 730 (2x no cartão)"],["12 aulas","R$ 1.150 (3x no cartão)"]].map(([a,v])=>({chip:`60 Dias · ${a}`,line:`${a}: <b>${v}</b>`}))};
+  return {title:"Aula avulsa", desc:"Uma aula pra experimentar, sem compromisso",
+    items:[["Durante a semana","R$ 98"],["Fim de semana","R$ 148"]].map(([a,v])=>({chip:`Avulsa · ${a.toLowerCase()}`,line:`${a}: <b>${v}</b>`}))};
 }
-function showPrimary(){
-  const r=S.rec, a=describe(r.prim); set("sugerido",a.label);
-  bot([`Pronto, ${S.data.nome}! Pelo que você me contou, o melhor pra você é:`,{html:a.html},`Indiquei esse porque ${r.why}. O que achou?`],
-    ()=>ask("reacao1",["Gostei!","Quero ver outra opção","Tenho uma dúvida"]));
+const COACH = {
+  "Básico":{d:"Acompanhamento individual, ajustes técnicos e feedback na hora",items:[["4 aulas","R$ 649 (2x)"],["8 aulas","R$ 1.200 (3x)"],["12 aulas","R$ 1.620 (4x)"]],av:"R$ 180"},
+  "Elite":{d:"Tudo do Básico + filmagem, vídeo análise e planejamento de evolução",items:[["4 aulas","R$ 840 (2x)"],["8 aulas","R$ 1.680 (3x)"]],av:"R$ 250"}
+};
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+function groupHtml(o,star){
+  return `<div class="plan"><strong>👥 Em grupo · ${o.title}</strong>${star?" ⭐":""}<br>${o.desc}<br>${o.items.map(i=>"• "+i.line).join("<br>")}</div>`;
+}
+function coachHtml(star){
+  const b=COACH["Básico"], e=COACH["Elite"];
+  return `<div class="plan"><strong>🎯 Personalizado · Surf Coach</strong>${star?" ⭐":""}<br>`+
+    `<b>Básico:</b> ${b.d}<br>${b.items.map(([a,v])=>"• "+a+": <b>"+v+"</b>").join("<br>")}<br><br>`+
+    `<b>Elite:</b> ${e.d}<br>${e.items.map(([a,v])=>"• "+a+": <b>"+v+"</b>").join("<br>")}<br>`+
+    `<small>Todos com até 3 meses pra usar · aula avulsa a partir de ${b.av}</small></div>`;
+}
+function showOptions(){
+  const r=S.rec, g=groupOpts(r.group);
+  set("sugerido", `${g.title} (grupo) ou Surf Coach (personalizado)${r.coachStar?" · ⭐ coach":""}`);
+  const opts=[...g.items.map(i=>i.chip),"Surf Coach Básico","Surf Coach Elite","Ver outras opções","Tenho uma dúvida"];
+  S.back={step:"escolha",opts};
+  bot([`Pronto, ${S.data.nome}! Pelo que você me contou, separei as opções que mais combinam com você. A gente trabalha de dois jeitos:`,
+       {html:groupHtml(g,!r.coachStar)},
+       {html:coachHtml(r.coachStar)},
+       r.coachStar ? "Pelo seu objetivo, o acompanhamento individual tende a fazer bastante diferença ⭐ Mas quem decide é você!"
+                   : `A turma em grupo combina bem porque ${r.why} ⭐ E se quiser atenção só pra você, o Surf Coach é o mais completo.`,
+       "Qual dessas faz mais sentido pra você?"],
+    ()=>ask("escolha",opts));
+}
+function pick(o, g, step){
+  const d=S.data, items=groupOpts(g).items;
+  const hit=items.find(i=>i.chip===o);
+  if(hit){ set("escolha", hit.chip+" (grupo)"); set("temp","Prospect · quente"); closeOut(); return; }
+  if(o.startsWith("Surf Coach")){
+    const lvl=o.includes("Elite")?"Elite":"Básico"; S.coachLevel=lvl;
+    const opts=COACH[lvl].items.map(([a,v])=>`${a} · ${v}`);
+    bot([`Ótima escolha! 🎯 Qual pacote do Surf Coach ${lvl} você prefere? Todos têm até 3 meses pra usar.`],()=>ask("coach",opts));
+    return;
+  }
+  if(o==="Tenho uma dúvida"){ S.back={step,opts:S.expect}; bot(["Claro! Pode mandar sua dúvida 👇"],()=>ask("duvida",null)); return; }
+  if(o==="Ver outras opções"){ showAlt(); return; }
+  if(o==="Ver tabela completa"){ bot([{img:TABELA,text:"Aqui estão todos os planos 👆"}, "Qual chamou mais sua atenção?"],()=>ask("tabela",null)); return; }
+  if(o==="Nenhuma me convenceu"){ set("escolha","Nenhum ainda"); set("temp","Prospect · morno"); addObs("não se convenceu com as opções");
+    bot([`Sem problema, ${d.nome}! Vou chamar alguém do time pra montar algo sob medida pra você.`],()=>handoff()); }
 }
 function showAlt(){
-  const b=describe(S.rec.alt); set("alternativa",b.label);
-  bot(["Tranquilo! Então dá uma olhada nessa outra opção:",{html:b.html},"E se preferir, te mando a tabela completa com todos os planos."],
-    ()=>ask("reacao2",["Gostei dessa","Ver tabela completa","Nenhuma me convenceu"]));
+  const a=groupOpts(S.rec.alt); set("alternativa",a.title+" (grupo)");
+  const opts=[...a.items.map(i=>i.chip),"Surf Coach Básico","Surf Coach Elite","Ver tabela completa","Nenhuma me convenceu"];
+  S.back={step:"escolha2",opts};
+  bot(["Tranquilo! Tem também essa outra opção em grupo:",{html:groupHtml(a,false)},
+       "E se preferir, te mando a tabela completa com todos os planos. O que acha?"],
+    ()=>ask("escolha2",opts));
 }
 function closeOut(){
   bot([`Fechou, ${S.data.nome}! 🤙 Já já alguém do nosso time te chama aqui pra acertar horário e pagamento.`],()=>handoff());
@@ -433,7 +474,7 @@ function summary(){
   if(d.vezes) L.push(`Já surfou: ${d.vezes.toLowerCase()}`);
   if(d.objetivo) L.push(`Objetivo: ${d.objetivo}`);
   const rot=[d.freq,d.rotina,d.horario].filter(Boolean).join(" · "); if(rot) L.push(`Rotina: ${rot}`);
-  if(d.sugerido) L.push(`Sugerido: ${d.sugerido}${d.periodo?" ("+d.periodo.toLowerCase()+")":""}`);
+  if(d.sugerido) L.push(`Ofertado: ${d.sugerido}`);
   if(d.escolha) L.push(`Escolha: ${d.escolha}`);
   if(d.obs) L.push(`Obs: ${d.obs}`);
   L.push(`Lista: ${d.temp||"Prospect"}`);
